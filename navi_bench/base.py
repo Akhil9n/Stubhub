@@ -238,7 +238,7 @@ class DatasetItem(BaseModel):
             "Task first-level category / sector: realestate | food | e_commerce | social | travel. "
             "Use underscore instead of hyphen."
         ),
-        pattern=r"^realestate|food|e_commerce|social|travel$",
+        pattern=r"^realestate|food|e_commerce|social|travel|entertainment$",
     )
     l2_category: str | None = Field(
         description=(

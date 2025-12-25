@@ -231,10 +231,10 @@ async def handle_new_page(new_page: Page, evaluator) -> None:
     await attach_to_page(new_page, evaluator)
 
     # Take an immediate snapshot
-    try:
-        await evaluator.update(url=new_page.url, page=new_page)
-    except Exception as e:
-        print(f"[WARN] evaluator.update(new tab) failed: {e}")
+    # try:
+    #     await evaluator.update(url=new_page.url, page=new_page)
+    # except Exception as e:
+    #     print(f"[WARN] evaluator.update(new tab) failed: {e}")
 
 
 # =============================================================================
@@ -300,7 +300,7 @@ async def run_local_task(dataset_row: Dict[str, Any]) -> None:
         )
 
         await evaluator.reset()
-        await evaluator.update(url=task_config.url, page=page)
+        # await evaluator.update(url=task_config.url, page=page)
         # await attach_human_agent_loop(page, evaluator)
         await attach_to_page(page, evaluator)
 

@@ -2,6 +2,11 @@
     const results = [];
     const url = window.location.href;
 
+    window.__stubhubNormalization = {
+        currency: "USD",
+        dateFormat: "YYYY-MM-DD",
+    };
+
     /* -----------------------------
      * Utilities
      * ----------------------------- */
@@ -25,6 +30,42 @@
         return el ? el.textContent?.trim() || null : null;
     };
 
+    /* ============================================================
+    * Normalization
+    * ============================================================ */
+
+    const normalizeDateToISO = (raw) => {
+        if (!raw) return null;
+
+        const cleaned = raw
+            .replace(/•/g, " ")
+            .replace(/,/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        const d = new Date(cleaned);
+        if (isNaN(d.getTime())) return null;
+        return d.toISOString().split("T")[0];
+    };
+
+    const getDateFromUrl = () => {
+        const m = url.match(/tickets-(\d+)-(\d+)-(\d+)/);
+        if (!m) return null;
+        return `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+    };
+
+    const INR_TO_USD = 0.012; // fixed conservative eval-safe rate
+
+    const normalizePriceToUSD = (raw) => {
+        if (!raw) return null;
+        const n = parseInt(raw.replace(/[^\d]/g, ""), 10);
+        if (isNaN(n)) return null;
+        return Math.round(n * INR_TO_USD);
+    };
+
+    /* ============================================================
+    * Event Metadata (Listings Page Header)
+    * ============================================================ */
     
     const getEventMetaFromHeader = () => {
         const header = document.querySelector('[data-testid="event-detail-header"]');
@@ -51,9 +92,10 @@
 
         return {
             eventName,
-            eventDate: dateText,   // keep human-readable for now
+            eventDate: normalizeDateToISO(dateText) || getDateFromUrl(),   // keep human-readable for now
             venue,
             city,
+            domain: "MusicEvent",
             url: window.location.href,
         };
     };
@@ -87,15 +129,31 @@
         return true;
     };
 
+    const getListingsFilters = () => {
+        const params = new URLSearchParams(window.location.search);
+
+        return {
+            hasQuantityFilter: params.has("quantity"),
+            hasPriceFilter:
+                params.has("minPrice") || params.has("maxPrice"),
+            hasSort:
+                params.has("sort"),
+            hasAnyFilter:
+                params.has("quantity") ||
+                params.has("minPrice") ||
+                params.has("maxPrice") ||
+                params.has("sort"),
+        };
+    };
+
+
     /* -----------------------------
     * Page detection
     * ----------------------------- */
-    // const isSearchPage = () => {
-    //     return (
-    //         url.includes("/search") ||
-    //         document.querySelector('[data-testid="search-results"]')
-    //     );
-    // };
+
+    const CURRENCY_RATES = {
+        INR_TO_USD: 0.012, // conservative fixed rate (safe for eval)
+    };
 
     const isSearchPage = () => {
         return (
@@ -192,12 +250,16 @@
     const extractTicketListings = (eventMeta) => {
         const listings = [];
 
-        const cards = document.querySelectorAll('[data-listing-id]');
+        const cards = Array.from(
+            document.querySelectorAll('[data-listing-id]')
+        ).filter(isVisible);
+
 
         for (const card of cards) {
             const rawPrice = card.getAttribute('data-price');
             const isSold = card.getAttribute('data-is-sold') === "1";
-
+            
+            // const price = normalizePriceToUSD(rawPrice);
             const price = rawPrice
                 ? parseInt(rawPrice.replace(/[^\d]/g, ""), 10)
                 : null;
@@ -262,15 +324,25 @@
         const eventMeta = getEventMetaFromHeader();
         if (!eventMeta) return;
 
+        const filters = getListingsFilters();
+
         const listings = extractTicketListings({
             eventName: eventMeta.eventName,
             eventDate: eventMeta.eventDate,
             venue: eventMeta.venue,
+            domain: eventMeta.domain,
         });
 
-        if (listings.length > 0) {
-            results.push(...listings);
-        }
+        // if (listings.length > 0) {
+        //     results.push(...listings);
+        // }
+        
+        if (listings.length === 0) return;
+
+        // IMPORTANT:
+        // If filters are active → DOM already reflects them
+        // If no filters → DOM shows all listings
+        results.push(...listings);
     };
 
     /* -----------------------------

@@ -43,7 +43,6 @@ LOCAL_DATASET_ROWS: List[Dict[str, Any]] = [
                             "ticket_quantities": [2],
                             "min_price": 0,
                             "max_price": 150,
-                            "domain": ["MusicEvent"],
                         }
                     ]
                 ],

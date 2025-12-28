@@ -95,7 +95,6 @@
             eventDate: normalizeDateToISO(dateText) || getDateFromUrl(),   // keep human-readable for now
             venue,
             city,
-            domain: "MusicEvent",
             url: window.location.href,
         };
     };
@@ -330,7 +329,6 @@
             eventName: eventMeta.eventName,
             eventDate: eventMeta.eventDate,
             venue: eventMeta.venue,
-            domain: eventMeta.domain,
         });
 
         // if (listings.length > 0) {

@@ -23,73 +23,73 @@ LOCAL_DATASET_ROWS: List[Dict[str, Any]] = [
     # -------------------------------------------------------------------------
     # 1. Concert — basic availability
     # -------------------------------------------------------------------------
+    # {
+    #     "task_id": "navi_bench/stubhub/concerts/any_sd_sq_price/0",
+    #     "task_generation_config_json": json.dumps(
+    #         {
+    #             "_target_": "navi_bench.stubhub.stubhub_task_generation.generate_task_config_deterministic",
+    #             "mode": "any",
+    #             "url": "https://www.stubhub.com/",
+    #             "task": (
+    #                 "Check if tickets are available for Sonu Nigam in Pune on "
+    #                 "January 10, 2026 for 2 people under $150."
+    #             ),
+    #             "queries": [
+    #                 [
+    #                     {
+    #                         "event_names": ["sonu nigam"],
+    #                         "dates": ["2026-01-10"],
+    #                         "venues": ["pune"],
+    #                         "ticket_quantities": [2],
+    #                         "min_price": 0,
+    #                         "max_price": 150,
+    #                     }
+    #                 ]
+    #             ],
+    #             "location": "Pune, Maharashtra, India",
+    #             "timezone": "India/Mumbai",
+    #         }
+    #     ),
+    #     "env": "real",
+    #     "domain": "stubhub",
+    #     "l1_category": "entertainment",
+    #     "l2_category": "concerts",
+    # },
+
+    # -------------------------------------------------------------------------
+    # 2. Sports — multiple quantities
+    # -------------------------------------------------------------------------
     {
-        "task_id": "navi_bench/stubhub/concerts/any_sd_sq_price/0",
+        "task_id": "navi_bench/stubhub/sports/any_md_mq_price/0",
         "task_generation_config_json": json.dumps(
             {
                 "_target_": "navi_bench.stubhub.stubhub_task_generation.generate_task_config_deterministic",
                 "mode": "any",
-                "url": "https://www.stubhub.com/",
+                "url": "https://www.stubhub.com",
                 "task": (
-                    "Check if tickets are available for Sonu Nigam in Pune on "
-                    "January 10, 2026 for 2 people under $150."
+                    "Check ticket availability for the Los Angeles Lakers game "
+                    "in Los Angeles tomorrow for 2 to 4 people under $200."
                 ),
                 "queries": [
                     [
                         {
-                            "event_names": ["sonu nigam"],
-                            "dates": ["2026-01-10"],
-                            "venues": ["pune"],
-                            "ticket_quantities": [2],
+                            "event_names": ["lakers"],
+                            "ticket_quantities": [8],
                             "min_price": 0,
-                            "max_price": 150,
+                            "max_price": 200,
+                            "domain": ["sports"],
                         }
                     ]
                 ],
-                "location": "Pune, Maharashtra, India",
-                "timezone": "India/Mumbai",
+                "location": "Los Angeles, CA, United States",
+                "timezone": "America/Los_Angeles",
             }
         ),
         "env": "real",
         "domain": "stubhub",
         "l1_category": "entertainment",
-        "l2_category": "concerts",
+        "l2_category": "entertainment",
     },
-
-    # -------------------------------------------------------------------------
-    # 2. Sports — multiple quantities
-    # -------------------------------------------------------------------------
-    # {
-    #     "task_id": "navi_bench/stubhub/sports/any_md_mq_price/0",
-    #     "task_generation_config_json": json.dumps(
-    #         {
-    #             "_target_": "navi_bench.stubhub.stubhub_task_generation.generate_task_config_deterministic",
-    #             "mode": "any",
-    #             "url": "https://www.stubhub.com",
-    #             "task": (
-    #                 "Check ticket availability for the Los Angeles Lakers game "
-    #                 "in Los Angeles tomorrow for 2 to 4 people under $200."
-    #             ),
-    #             "queries": [
-    #                 [
-    #                     {
-    #                         "event_names": ["lakers"],
-    #                         "ticket_quantities": [2, 3, 4],
-    #                         "min_price": 0,
-    #                         "max_price": 200,
-    #                         "domain": ["sports"],
-    #                     }
-    #                 ]
-    #             ],
-    #             "location": "Los Angeles, CA, United States",
-    #             "timezone": "America/Los_Angeles",
-    #         }
-    #     ),
-    #     "env": "real",
-    #     "domain": "stubhub",
-    #     "l1_category": "sports",
-    #     "l2_category": "sports",
-    # },
 
     # # -------------------------------------------------------------------------
     # # 3. Theatre — sold-out allowed

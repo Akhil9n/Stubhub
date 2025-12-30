@@ -145,11 +145,11 @@
         }
 
         // Date filter
-        if (filters.hasDateFilter && event.eventDate) {
-            if (!url.includes(event.eventDate)) {
-                return false;
-            }
-        }
+        // if (filters.hasDateFilter && event.eventDate) {
+        //     if (!url.includes(event.eventDate)) {
+        //         return false;
+        //     }
+        // }
 
         return true;
     };
@@ -185,7 +185,7 @@
     };
 
     const isPerformerSearchPage = () => {
-        return url.includes("/performer/");
+        return url.includes("/performer/") || url.includes("/grouping/") || url.includes("/category/");
     };
 
     const isSearchPage = () => {
@@ -215,43 +215,88 @@
 
 
     const extractSearchCards = () => {
+        // const grid = document.querySelector('[data-testid="primaryGrid"]');
+        // if (!grid) return [];
+
+        // const cards = Array.from(
+        //     grid.querySelectorAll('li a[href*="/event/"]')
+        // ).filter(link =>
+        //     link.querySelector('[data-testid="event-grid-item-title-text"]')
+        // );
+
         const cards = Array.from(
-            document.querySelectorAll('[data-testid="event-grid-item-title-text"]')
-        )
-        .map(el => el.closest('a[href*="/event/"]'))
-        .filter(Boolean)
+            document.querySelectorAll('[data-testid="primaryGrid"] > li[data-expanded]')
+        );
 
         const events = [];
 
-        for (const link of cards) {
-            const href = link.href;
+        // for (const link of cards) {
+        //     const href = link.href;
 
-            const titleEl = link.querySelector(
-                '[data-testid="event-grid-item-title-text"]'
-            );
-            const eventName =
-                titleEl?.innerText?.replace(/\s+/g, " ").trim() || null;
+        //     const titleEl = link.querySelector(
+        //         '[data-testid="event-grid-item-title-text"]'
+        //     );
+        //     const eventName =
+        //         titleEl?.innerText?.replace(/\s+/g, " ").trim() || null;
 
-            const month = link.querySelector("h4")?.textContent?.trim() || null;
-            const day = link.querySelectorAll("h4")[1]?.textContent?.trim() || null;
-            const year = link.querySelector("p")?.textContent?.trim() || null;
+        //     const month = link.querySelector("h4")?.textContent?.trim() || null;
+        //     const day = link.querySelectorAll("h4")[1]?.textContent?.trim() || null;
+        //     const year = link.querySelector("p")?.textContent?.trim() || null;
+
+        //     let eventDate = null;
+        //     if (month && day && year) {
+        //         eventDate = normalizeDateToISO(`${month} ${day} ${year}`);
+        //     }
+
+        //     const metaLine = link.querySelector(".sc-jetmxw-0");
+        //     const metaText = metaLine?.innerText || "";
+        //     const venue = metaText.split("|")[1]?.trim() || null;
+        //     const city = metaText.split("|")[2]?.trim() || null;
+
+        //     const isDisabled =
+        //         link.getAttribute("aria-disabled") === "true" ||
+        //         !link.querySelector("button");
+
+        //     events.push({
+        //         url: href,
+        //         eventName,
+        //         eventDate,
+        //         venue,
+        //         city,
+        //         availability: isDisabled ? "sold_out" : "available",
+        //         info: "search-card",
+        //     });
+        // }
+
+        for (const li of cards) {
+            const link = li.querySelector('a[href*="/event/"]');
+
+            if (!link) continue;
+
+            const titleEl = li.querySelector('[data-testid="event-grid-item-title-text"]');
+            const eventName = titleEl?.innerText?.replace(/\s+/g, " ").trim() || null;
+
+            const month = li.querySelector("h4")?.textContent?.trim() || null;
+            const day = li.querySelectorAll("h4")[1]?.textContent?.trim() || null;
+            const year = li.querySelector("p")?.textContent?.trim() || null;
 
             let eventDate = null;
             if (month && day && year) {
                 eventDate = normalizeDateToISO(`${month} ${day} ${year}`);
             }
 
-            const metaLine = link.querySelector(".sc-jetmxw-0");
+            const metaLine = li.querySelector(".sc-jetmxw-0");
             const metaText = metaLine?.innerText || "";
+
             const venue = metaText.split("|")[1]?.trim() || null;
             const city = metaText.split("|")[2]?.trim() || null;
 
             const isDisabled =
                 link.getAttribute("aria-disabled") === "true" ||
-                !link.querySelector("button");
+                !li.querySelector("button");
 
             events.push({
-                url: href,
+                url: link.href,
                 eventName,
                 eventDate,
                 venue,

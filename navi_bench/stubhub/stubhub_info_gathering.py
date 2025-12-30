@@ -91,9 +91,16 @@ class StubHubInfoGathering(BaseMetric):
                     '[aria-label*="ticket"], [data-testid*="listing"]',
                     timeout=15000
                 )
+
             except Exception:
                 logger.info("StubHub: no ticket listings found on event page yet")
         #######
+
+        if "/secure/Search" in page.url:
+            await page.wait_for_selector(
+                '[data-testid="primaryGrid"] li[data-expanded]',
+                timeout=15000
+            )
 
         infos: list[InfoDict] = await page.evaluate(self.js_script)
         logger.info(f"StubHub gathered {len(infos)} infos")

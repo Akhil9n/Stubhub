@@ -176,10 +176,6 @@
     * Page detection
     * ----------------------------- */
 
-    const CURRENCY_RATES = {
-        INR_TO_USD: 0.012, // conservative fixed rate (safe for eval)
-    };
-
     const isSecureSearchPage = () => {
         return url.includes("/secure/Search");
     };
@@ -301,7 +297,7 @@
                 eventDate,
                 venue,
                 city,
-                availability: isDisabled ? "sold_out" : "available",
+                availability: isDisabled ? "Get Notified" : "available",
                 info: "search-card",
             });
         }

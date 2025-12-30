@@ -63,6 +63,32 @@
         return Math.round(n * INR_TO_USD);
     };
 
+    const extractSeatType = (card) => {
+        const SEAT_TYPE_PATTERNS = [
+            /standing only/i,
+            /general admission/i,
+            /seated/i,
+            /balcony/i,
+            /floor/i,
+            /vip/i,
+        ];
+
+        const texts = Array.from(card.querySelectorAll("span"))
+            .map(el => el.textContent?.trim())
+            .filter(Boolean);
+
+        for (const text of texts) {
+            for (const pattern of SEAT_TYPE_PATTERNS) {
+                if (pattern.test(text)) {
+                    return text;
+                }
+            }
+        }
+
+        return null;
+    };
+
+
     /* ============================================================
     * Event Metadata (Listings Page Header)
     * ============================================================ */
@@ -154,10 +180,16 @@
         INR_TO_USD: 0.012, // conservative fixed rate (safe for eval)
     };
 
+    const isSecureSearchPage = () => {
+        return url.includes("/secure/Search");
+    };
+
+    const isPerformerSearchPage = () => {
+        return url.includes("/performer/");
+    };
+
     const isSearchPage = () => {
-        return (
-            document.querySelector('script[type="application/ld+json"]')
-        );
+        return isSecureSearchPage() || isPerformerSearchPage();
     };
 
     const isEventPage = () => {
@@ -180,6 +212,57 @@
     } else if (isSearchPage()) {
         PAGE_TYPE = "SEARCH_PAGE";
     }
+
+
+    const extractSearchCards = () => {
+        const cards = Array.from(
+            document.querySelectorAll('[data-testid="event-grid-item-title-text"]')
+        )
+        .map(el => el.closest('a[href*="/event/"]'))
+        .filter(Boolean)
+
+        const events = [];
+
+        for (const link of cards) {
+            const href = link.href;
+
+            const titleEl = link.querySelector(
+                '[data-testid="event-grid-item-title-text"]'
+            );
+            const eventName =
+                titleEl?.innerText?.replace(/\s+/g, " ").trim() || null;
+
+            const month = link.querySelector("h4")?.textContent?.trim() || null;
+            const day = link.querySelectorAll("h4")[1]?.textContent?.trim() || null;
+            const year = link.querySelector("p")?.textContent?.trim() || null;
+
+            let eventDate = null;
+            if (month && day && year) {
+                eventDate = normalizeDateToISO(`${month} ${day} ${year}`);
+            }
+
+            const metaLine = link.querySelector(".sc-jetmxw-0");
+            const metaText = metaLine?.innerText || "";
+            const venue = metaText.split("|")[1]?.trim() || null;
+            const city = metaText.split("|")[2]?.trim() || null;
+
+            const isDisabled =
+                link.getAttribute("aria-disabled") === "true" ||
+                !link.querySelector("button");
+
+            events.push({
+                url: href,
+                eventName,
+                eventDate,
+                venue,
+                city,
+                availability: isDisabled ? "sold_out" : "available",
+                info: "search-card",
+            });
+        }
+
+        return events;
+    };
 
 
     /* -----------------------------
@@ -255,6 +338,8 @@
 
 
         for (const card of cards) {
+            const listingId = card.getAttribute('data-listing-id');
+
             const rawPrice = card.getAttribute('data-price');
             const isSold = card.getAttribute('data-is-sold') === "1";
             
@@ -270,8 +355,21 @@
 
             if (!price) continue;
 
+            // --- CATEGORY (KEY ADDITION) ---
+            let category = null;
+            if (listingId) {
+                const categoryEl = card.querySelector(
+                    `[data-listing-cta-id="listing-${listingId}"]`
+                );
+                category = categoryEl?.textContent?.trim() || null;
+            }
+            
+            const seatType = extractSeatType(card);
+
             listings.push({
                 ...eventMeta,
+                ticketCategory: category,
+                seatType: seatType, 
                 availability: isSold ? "sold_out" : "available",
                 price,
                 ticketQuantity,
@@ -284,7 +382,18 @@
 
 
     const handleSearchPage = () => {
-        const ldEvents = getEventsFromLdJson();
+        let events = []
+        // CASE 1️⃣: /secure/Search → DOM cards
+        if (isSecureSearchPage()) {
+            events = extractSearchCards();
+        }
+
+        // CASE 2️⃣: /performer/ → LD+JSON
+        else if (isPerformerSearchPage()) {
+            events = getEventsFromLdJson();
+        }
+
+        // const ldEvents = getEventsFromLdJson();
         // if (ldEvents.length === 0) return;
 
         const filters = getActiveFilters();
@@ -296,8 +405,8 @@
             filters.hasQuantityFilter;
 
         const candidateEvents = shouldFilter
-            ? ldEvents.filter(e => eventMatchesFilters(e, filters))
-            : ldEvents;
+            ? events.filter(e => eventMatchesFilters(e, filters))
+            : events;
 
         /* EVENT / SEARCH PAGE — emit event-level info */
         for (const event of candidateEvents) {
@@ -306,9 +415,9 @@
                 eventName: event.eventName,
                 eventDate: event.eventDate,
                 venue: event.venue,
-                domain: event.domain,
+                domain: event.domain || null,
                 availability: event.availability || "unknown",
-                info: "ld+json",
+                info: event.info || "search",
             });
         }
     }

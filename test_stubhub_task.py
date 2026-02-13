@@ -75,6 +75,7 @@ LOCAL_DATASET_ROWS: List[Dict[str, Any]] = [
                         {
                             "event_names": ["lakers"],
                             "ticket_quantities": [8],
+                            "dates": ["2025-12-31"],
                             "min_price": 0,
                             "max_price": 200,
                             "domain": ["sports"],

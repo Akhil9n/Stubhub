@@ -60,6 +60,13 @@
         if (!raw) return null;
         const n = parseInt(raw.replace(/[^\d]/g, ""), 10);
         if (isNaN(n)) return null;
+
+        // Check for Dollar sign explicitly
+        if (raw.includes("$") || raw.includes("USD")) {
+            return n; // Already in USD
+        }
+        // Fallback to INR conversion (or check for ₹)
+        
         return Math.round(n * INR_TO_USD);
     };
 
@@ -226,44 +233,6 @@
 
         const events = [];
 
-        // for (const link of cards) {
-        //     const href = link.href;
-
-        //     const titleEl = link.querySelector(
-        //         '[data-testid="event-grid-item-title-text"]'
-        //     );
-        //     const eventName =
-        //         titleEl?.innerText?.replace(/\s+/g, " ").trim() || null;
-
-        //     const month = link.querySelector("h4")?.textContent?.trim() || null;
-        //     const day = link.querySelectorAll("h4")[1]?.textContent?.trim() || null;
-        //     const year = link.querySelector("p")?.textContent?.trim() || null;
-
-        //     let eventDate = null;
-        //     if (month && day && year) {
-        //         eventDate = normalizeDateToISO(`${month} ${day} ${year}`);
-        //     }
-
-        //     const metaLine = link.querySelector(".sc-jetmxw-0");
-        //     const metaText = metaLine?.innerText || "";
-        //     const venue = metaText.split("|")[1]?.trim() || null;
-        //     const city = metaText.split("|")[2]?.trim() || null;
-
-        //     const isDisabled =
-        //         link.getAttribute("aria-disabled") === "true" ||
-        //         !link.querySelector("button");
-
-        //     events.push({
-        //         url: href,
-        //         eventName,
-        //         eventDate,
-        //         venue,
-        //         city,
-        //         availability: isDisabled ? "sold_out" : "available",
-        //         info: "search-card",
-        //     });
-        // }
-
         for (const li of cards) {
             const link = li.querySelector('a[href*="/event/"]');
 
@@ -346,26 +315,6 @@
         return events;
     };
 
-
-    /* -----------------------------
-    * Event-level metadata
-    * ----------------------------- */
-
-    const getVenue = () => {
-        return (
-            textContent(document.querySelector('[data-testid="event-venue"]')) ||
-            textContent(document.querySelector('[data-testid="venue-name"]'))
-        );
-    };
-
-    const getDomain = () => {
-        if (url.includes("/sports")) return "sports";
-        if (url.includes("/concerts")) return "concerts";
-        if (url.includes("/theater")) return "theatre";
-        if (url.includes("/festivals")) return "festivals";
-        return null;
-    };
-
     /* -----------------------------
     * Listing parsers
     * ----------------------------- */
@@ -434,9 +383,6 @@
             events = getEventsFromLdJson();
         }
 
-        // const ldEvents = getEventsFromLdJson();
-        // if (ldEvents.length === 0) return;
-
         const filters = getActiveFilters();
 
         // Decide whether filtering is required
@@ -480,10 +426,6 @@
             eventDate: eventMeta.eventDate,
             venue: eventMeta.venue,
         });
-
-        // if (listings.length > 0) {
-        //     results.push(...listings);
-        // }
         
         if (listings.length === 0) return;
 

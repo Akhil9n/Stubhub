@@ -63,3 +63,6 @@ rendered/
 # uv
 .python-version
 uv.lock
+
+#chrome_profile for debugging
+chrome_profile

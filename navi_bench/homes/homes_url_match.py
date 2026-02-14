@@ -2,11 +2,11 @@
 Homes.com URL Match Verifier (Universal Edition)
 
 Handles both Path-Based Slugs AND Query Parameters.
-Fixes false positives by ensuring filters are extracted from all URL formats.
+Now correctly parses Property Types (condos, townhomes) and Transaction Types (rent/sale).
 """
 
 import re
-from typing import Any, Dict, Optional, Tuple, List
+from typing import Any, Dict, Optional, Tuple, List, Union
 from urllib.parse import parse_qs, urlparse
 from pydantic import BaseModel
 from navi_bench.base import BaseMetric
@@ -27,12 +27,17 @@ class HomesUrlMatch(BaseMetric):
 
     def __init__(
         self,
-        ground_truth_url: str,
+        ground_truth_urls: Union[str, List[str]],
         *,
         strict_location: bool = True,
         strict_filters: bool = True
     ):
-        self.ground_truth_url = ground_truth_url
+        # Handle both single string and list of strings
+        if isinstance(ground_truth_urls, str):
+            self.ground_truth_urls = [ground_truth_urls]
+        else:
+            self.ground_truth_urls = ground_truth_urls
+            
         self.strict_location = strict_location
         self.strict_filters = strict_filters
         self._agent_url: Optional[str] = None
@@ -45,18 +50,24 @@ class HomesUrlMatch(BaseMetric):
         if not self._agent_url:
             return HomesVerifierResult(
                 score=0.0, match=False, agent_url="", 
-                ground_truth_url=self.ground_truth_url, 
+                ground_truth_url=self.ground_truth_urls[0], 
                 details={"error": "No agent URL provided"}
             )
         
-        match, details = self._urls_match(self._agent_url, self.ground_truth_url)
-        
+        # Check against ALL provided GT URLs
+        best_details = {}
+        for gt_url in self.ground_truth_urls:
+            match, details = self._urls_match(self._agent_url, gt_url)
+            if match:
+                return HomesVerifierResult(
+                    score=1.0, match=True, agent_url=self._agent_url,
+                    ground_truth_url=gt_url, details=details
+                )
+            best_details = details
+
         return HomesVerifierResult(
-            score=1.0 if match else 0.0,
-            match=match,
-            agent_url=self._agent_url,
-            ground_truth_url=self.ground_truth_url,
-            details=details
+            score=0.0, match=False, agent_url=self._agent_url,
+            ground_truth_url=self.ground_truth_urls[0], details=best_details
         )
 
     def _parse_homes_url(self, url: str) -> Dict[str, Any]:
@@ -74,21 +85,29 @@ class HomesUrlMatch(BaseMetric):
         parsed = urlparse(url)
         path_segments = [s for s in parsed.path.split("/") if s]
         
-        # --- 1. LOCATION EXTRACTION ---
-        # Heuristic: First segment that isn't a transaction type
-        ignore_slugs = {"homes-for-sale", "homes-for-rent", "sold", "new-homes"}
+        # --- 1. PATH SEGMENT PARSING ---
         for segment in path_segments:
-            if segment not in ignore_slugs and not any(char.isdigit() for char in segment):
-                # Simple check: locations usually don't have numbers (except zip codes)
-                result["location"] = segment.replace("-", " ").lower()
-                break
+            segment_lower = segment.lower()
+            
+            # A. Check for Transaction/Property Type (e.g., 'condos-for-sale')
+            # matches: 'homes-for-sale', 'condos-for-rent', 'townhomes-sold', 'new-homes'
+            txn_match = re.match(r"^(.*?)-(for-sale|for-rent|sold)$", segment_lower)
+            if txn_match:
+                result["filters"]["property_type_slug"] = txn_match.group(1) # e.g. 'condos'
+                result["filters"]["transaction_type"] = txn_match.group(2)   # e.g. 'for-sale'
+                continue
+            
+            # Special case for "new-homes" (often appears at root or near location)
+            if segment_lower == "new-homes":
+                result["filters"]["listing_category"] = "new-homes"
+                continue
 
-        # --- 2. PATH SLUG EXTRACTION (The "Pretty" URL filters) ---
-        for segment in path_segments:
+            # B. Check for Metric Slugs (Price, Bed, Bath)
+            is_metric = False
+            
             # Price: p-500k, p-1m-5m
-            if segment.startswith("p-"):
-                # Clean up: p-500k -> 500k
-                val = segment[2:].replace("k", "000").replace("m", "000000").replace("+", "")
+            if segment_lower.startswith("p-"):
+                val = segment_lower[2:].replace("k", "000").replace("m", "000000").replace("+", "")
                 if "-" in val:
                     try:
                         min_p, max_p = val.split("-")
@@ -96,37 +115,74 @@ class HomesUrlMatch(BaseMetric):
                         result["filters"]["price_max"] = self._clean_num(max_p)
                     except: pass
                 else:
-                    # Ambiguous: usually p-500k means max or min depending on context
-                    # Homes.com usually treats single value as MAX unless '+' was present
                     result["filters"]["price_min"] = self._clean_num(val)
+                is_metric = True
 
             # Bedrooms: 3-bed, 3-bedroom, 3-to-5-bedroom
-            bed_match = re.search(r"(\d+)(?:-to-(\d+))?-bed", segment)
+            bed_match = re.search(r"(\d+)(?:-to-(\d+))?-bed", segment_lower)
             if bed_match:
                 result["filters"]["beds_min"] = int(bed_match.group(1))
                 if bed_match.group(2):
                     result["filters"]["beds_max"] = int(bed_match.group(2))
+                is_metric = True
 
             # Bathrooms: 2-bath, 2-ba
-            bath_match = re.search(r"(\d+(?:\.\d+)?)-ba", segment)
+            bath_match = re.search(r"(\d+(?:\.\d+)?)-ba", segment_lower)
             if bath_match:
                 result["filters"]["baths_min"] = float(bath_match.group(1))
+                is_metric = True
+                
+            if is_metric:
+                continue
 
-        # --- 3. QUERY PARAM EXTRACTION (The "Real" URL filters) ---
-        # These override path slugs if present
+            # C. Location Heuristic
+            # If it's not a transaction type, not a metric, and not just a page number, it's the location.
+            if not is_metric and not re.match(r"^\d+$", segment_lower):
+                # We assume the remaining segment is the location
+                # (e.g. 'nashville-tn', 'austin-tx')
+                result["location"] = segment_lower.replace("-", " ")
+
+        # --- 2. QUERY PARAM EXTRACTION (Overrides Path) ---
         qs = parse_qs(parsed.query)
         
-        if "price-min" in qs: result["filters"]["price_min"] = self._clean_num(qs["price-min"][0])
-        if "price-max" in qs: result["filters"]["price_max"] = self._clean_num(qs["price-max"][0])
-        if "beds-min" in qs: result["filters"]["beds_min"] = self._clean_num(qs["beds-min"][0])
-        if "beds-max" in qs: result["filters"]["beds_max"] = self._clean_num(qs["beds-max"][0])
-        if "baths-min" in qs: result["filters"]["baths_min"] = float(qs["baths-min"][0])
+        # Mapping of URL Param -> Internal Filter Key
+        numeric_map = {
+            "price-min": "price_min", "price-max": "price_max",
+            "beds-min": "beds_min",   "beds-max": "beds_max",
+            "baths-min": "baths_min",
+            "sfmin": "sqft_min",      "sfmax": "sqft_max",
+            "yb-min": "year_built_min", "yb-max": "year_built_max",
+            "st-min": "stories_min",
+            "parking": "parking_spots",
+            "ls-min": "lot_size_min",
+            "property_type": "property_type_id", # Query params use IDs (e.g. 4, 16)
+            "listing_type": "listing_type_id"
+        }
+
+        for url_key, filter_key in numeric_map.items():
+            if url_key in qs:
+                # We store these as strings or numbers depending on cleaning
+                # For IDs (property_type), we keep them as is (comma separated strings)
+                if "type" in url_key:
+                     result["filters"][filter_key] = qs[url_key][0]
+                else:
+                     result["filters"][filter_key] = self._clean_num(qs[url_key][0])
+
+        # Amenities and Sort Keys
+        exact_matches = ["am", "sk", "bb"]
+        for key in exact_matches:
+            if key in qs:
+                result["filters"][key] = qs[key][0]
 
         return result
 
     def _clean_num(self, val: str) -> int:
+        """
+        Robustly cleans numbers strings like '$500,000+', '3000sf', '3+'.
+        """
         try:
-            clean = str(val).lower().replace(",", "").replace("$", "").replace("+", "")
+            # Keep only digits and dots
+            clean = re.sub(r"[^\d.]", "", str(val))
             return int(float(clean))
         except:
             return 0
@@ -145,6 +201,7 @@ class HomesUrlMatch(BaseMetric):
         if self.strict_location and gt_parts["location"]:
             a_loc = agent_parts["location"] or ""
             g_loc = gt_parts["location"] or ""
+            # Looser check: pass if one is a substring of the other
             if g_loc not in a_loc and a_loc not in g_loc:
                 details["mismatches"].append({
                     "field": "location",
@@ -155,13 +212,11 @@ class HomesUrlMatch(BaseMetric):
 
         # Check Filters
         if self.strict_filters:
-            # If GT has no filters, warn but pass (unless empty GT is invalid for the task)
-            if not gt_parts["filters"]:
-                pass 
-                
             for key, expected_val in gt_parts["filters"].items():
                 agent_val = agent_parts["filters"].get(key)
                 
+                # Handling amenities (comma separated lists logic could go here)
+                # For now, strict string equality is safest for verification
                 if agent_val != expected_val:
                     details["mismatches"].append({
                         "field": key,

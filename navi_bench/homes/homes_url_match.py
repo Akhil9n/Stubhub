@@ -76,7 +76,9 @@ class HomesUrlMatch(BaseMetric):
         """
         result = {
             "location": None,
-            "filters": {}
+            "filters": {
+                "keywords": []  # List to hold amenities/styles found in path
+            }
         }
 
         if not url:
@@ -89,21 +91,35 @@ class HomesUrlMatch(BaseMetric):
         for segment in path_segments:
             segment_lower = segment.lower()
             
-            # A. Check for Transaction/Property Type (e.g., 'condos-for-sale')
-            # matches: 'homes-for-sale', 'condos-for-rent', 'townhomes-sold', 'new-homes'
+            # A. Check for Combined Transaction/Property Type (e.g., 'condos-for-sale')
             txn_match = re.match(r"^(.*?)-(for-sale|for-rent|sold)$", segment_lower)
-            if txn_match:
-                result["filters"]["property_type_slug"] = txn_match.group(1) # e.g. 'condos'
-                result["filters"]["transaction_type"] = txn_match.group(2)   # e.g. 'for-sale'
-                continue
             
-            # Special case for "new-homes" (often appears at root or near location)
-            if segment_lower == "new-homes":
-                result["filters"]["listing_category"] = "new-homes"
+            # --- FIX 1: Explicitly handle standalone transaction types ---
+            if segment_lower in {"for-sale", "for-rent", "sold"}:
+                result["filters"]["transaction_type"] = segment_lower
                 continue
 
-            # B. Check for Metric Slugs (Price, Bed, Bath)
+            # Handle Combined (e.g. condos-for-sale)
+            # We exclude standalone matches here to avoid 'for-sale' matching group 1='for', group 2='sale' logic errors
+            elif txn_match:
+                # Ensure it's not just the standalone word (handled above)
+                if txn_match.group(1): 
+                    result["filters"]["property_type_slug"] = txn_match.group(1) 
+                    result["filters"]["transaction_type"] = txn_match.group(2)
+                continue
+            
+            # --- FIX 1: Catch 'new-construction', 'foreclosures' etc. ---
+            if segment_lower in {"new-homes", "new-construction", "foreclosures", "open-house"}:
+                result["filters"]["listing_category"] = segment_lower
+                continue
+
+           # B. Check for Metric Slugs (Price, Bed, Bath, STUDIO)
             is_metric = False
+            
+            if segment_lower == "studio":
+                result["filters"]["beds_min"] = 0
+                result["filters"]["beds_max"] = 0
+                is_metric = True
             
             # Price: p-500k, p-1m-5m
             if segment_lower.startswith("p-"):
@@ -135,12 +151,21 @@ class HomesUrlMatch(BaseMetric):
             if is_metric:
                 continue
 
-            # C. Location Heuristic
-            # If it's not a transaction type, not a metric, and not just a page number, it's the location.
-            if not is_metric and not re.match(r"^\d+$", segment_lower):
-                # We assume the remaining segment is the location
-                # (e.g. 'nashville-tn', 'austin-tx')
-                result["location"] = segment_lower.replace("-", " ")
+            # C. Location & Keyword Heuristic
+            if not re.match(r"^\d+$", segment_lower):
+                # If Location is NOT set, this is the Location
+                if not result["location"]: 
+                    result["location"] = segment_lower.replace("-", " ")
+                
+                # --- FIX: If Location IS set, this is a Filter Keyword ---
+                else:
+                    # Check for architectural styles (e.g. 'ranch-style-homes')
+                    style_match = re.match(r"^(.*?)-style-homes$", segment_lower)
+                    if style_match:
+                        result["filters"]["architectural_style"] = style_match.group(1)
+                    else:
+                        # Otherwise, treat as a generic keyword (e.g. 'fireplace', 'pool')
+                        result["filters"]["keywords"].append(segment_lower)
 
         # --- 2. QUERY PARAM EXTRACTION (Overrides Path) ---
         qs = parse_qs(parsed.query)
@@ -149,12 +174,14 @@ class HomesUrlMatch(BaseMetric):
         numeric_map = {
             "price-min": "price_min", "price-max": "price_max",
             "beds-min": "beds_min",   "beds-max": "beds_max",
-            "baths-min": "baths_min",
+            "bed-min": "beds_min",    "bed-max": "beds_max",
+            "baths-min": "baths_min", "bath-min": "baths_min",
             "sfmin": "sqft_min",      "sfmax": "sqft_max",
             "yb-min": "year_built_min", "yb-max": "year_built_max",
             "st-min": "stories_min",
             "parking": "parking_spots",
             "ls-min": "lot_size_min",
+            "pp-min": "price_per_sqft_min", "pp-max": "price_per_sqft_max",
             "property_type": "property_type_id", # Query params use IDs (e.g. 4, 16)
             "listing_type": "listing_type_id"
         }

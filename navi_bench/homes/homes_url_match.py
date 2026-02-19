@@ -176,7 +176,7 @@ class HomesUrlMatch(BaseMetric):
             "beds-min": "beds_min",   "beds-max": "beds_max",
             "bed-min": "beds_min",    "bed-max": "beds_max",
             "baths-min": "baths_min", "bath-min": "baths_min",
-            "baths-max": "baths_max", "bath-max": "bath_max",
+            "baths-max": "baths_max", "bath-max": "baths_max",
             "sfmin": "sqft_min",      "sfmax": "sqft_max",
             "yb-min": "year_built_min", "yb-max": "year_built_max",
             "gsr-min": "School_Rating_min", "gsr-max": "School_Rating_max",

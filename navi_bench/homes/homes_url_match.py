@@ -244,8 +244,40 @@ class HomesUrlMatch(BaseMetric):
             for key, expected_val in gt_parts["filters"].items():
                 agent_val = agent_parts["filters"].get(key)
                 
-                # Handling amenities (comma separated lists logic could go here)
-                # For now, strict string equality is safest for verification
+                # 1. Handle Keywords List (Order-Independent)
+                if key == "keywords":
+                    if not expected_val: 
+                        continue
+                    agent_set = set(agent_val or [])
+                    expected_set = set(expected_val)
+                    if not expected_set.issubset(agent_set):
+                        details["mismatches"].append({
+                            "field": "keywords",
+                            "agent": agent_val,
+                            "expected": expected_val
+                        })
+                        return False, details
+                    continue
+
+                # 2. Handle Comma-Separated ID Strings (Order-Independent)
+                # Apply this to amenities, property types, and listing types
+                if key in {"am", "property_type_id", "listing_type_id"} and isinstance(expected_val, str):
+                    expected_set = set(expected_val.split(","))
+                    # Ensure agent_val is a string before splitting, handle None gracefully
+                    agent_set = set(str(agent_val).split(",")) if agent_val else set()
+                    
+                    # Using exact set match (ignores order). 
+                    # Change to expected_set.issubset(agent_set) if you want to allow extra agent filters.
+                    if expected_set != agent_set:
+                        details["mismatches"].append({
+                            "field": key,
+                            "agent": agent_val,
+                            "expected": expected_val
+                        })
+                        return False, details
+                    continue
+
+                # 3. Default Strict Equality for all other values (Numbers, simple strings)
                 if agent_val != expected_val:
                     details["mismatches"].append({
                         "field": key,

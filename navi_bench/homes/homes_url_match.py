@@ -135,11 +135,17 @@ class HomesUrlMatch(BaseMetric):
                 is_metric = True
 
             # Bedrooms: 3-bed, 3-bedroom, 3-to-5-bedroom
-            bed_match = re.search(r"(\d+)(?:-to-(\d+))?-bed", segment_lower)
-            if bed_match:
-                result["filters"]["beds_min"] = int(bed_match.group(1))
+            elif re.search(r"(studio|\d+)(?:-to-(\d+))?-bed", segment_lower):
+                bed_match = re.search(r"(studio|\d+)(?:-to-(\d+))?-bed", segment_lower)
+                
+                # Group 1 is either 'studio' or the minimum number
+                min_val = bed_match.group(1)
+                result["filters"]["beds_min"] = 0 if min_val == "studio" else int(min_val)
+                
+                # Group 2 is the max value (if a range is present)
                 if bed_match.group(2):
                     result["filters"]["beds_max"] = int(bed_match.group(2))
+                    
                 is_metric = True
 
             # Bathrooms: 2-bath, 2-ba

@@ -27,16 +27,16 @@ class HomesUrlMatch(BaseMetric):
 
     def __init__(
         self,
-        ground_truth_urls: Union[str, List[str]],
+        gt_urls: Union[str, List[str]],
         *,
         strict_location: bool = True,
         strict_filters: bool = True
     ):
         # Handle both single string and list of strings
-        if isinstance(ground_truth_urls, str):
-            self.ground_truth_urls = [ground_truth_urls]
+        if isinstance(gt_urls, str):
+            self.gt_urls = [gt_urls]
         else:
-            self.ground_truth_urls = ground_truth_urls
+            self.gt_urls = gt_urls
             
         self.strict_location = strict_location
         self.strict_filters = strict_filters
@@ -50,13 +50,13 @@ class HomesUrlMatch(BaseMetric):
         if not self._agent_url:
             return HomesVerifierResult(
                 score=0.0, match=False, agent_url="", 
-                ground_truth_url=self.ground_truth_urls[0], 
+                ground_truth_url=self.gt_urls[0], 
                 details={"error": "No agent URL provided"}
             )
         
         # Check against ALL provided GT URLs
         best_details = {}
-        for gt_url in self.ground_truth_urls:
+        for gt_url in self.gt_urls:
             match, details = self._urls_match(self._agent_url, gt_url)
             if match:
                 return HomesVerifierResult(
@@ -67,7 +67,7 @@ class HomesUrlMatch(BaseMetric):
 
         return HomesVerifierResult(
             score=0.0, match=False, agent_url=self._agent_url,
-            ground_truth_url=self.ground_truth_urls[0], details=best_details
+            ground_truth_url=self.gt_urls[0], details=best_details
         )
 
     def _parse_homes_url(self, url: str) -> Dict[str, Any]:
